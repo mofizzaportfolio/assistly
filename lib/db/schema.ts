@@ -29,6 +29,7 @@ export const ticketEvents = pgTable('ticket_events', {
   visibility: text('visibility').notNull().default('internal'),
   body: text('body'),
   metadata: jsonb('metadata').notNull().default({}),
+  idempotencyKey: text('idempotency_key'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
