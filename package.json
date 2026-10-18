@@ -9,7 +9,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "staff:hash": "node scripts/hash-staff-password.mjs"
+    "staff:hash": "node scripts/hash-staff-password.mjs",
+    "test:integration": "node scripts/integration-test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

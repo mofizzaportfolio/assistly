@@ -12,6 +12,8 @@ export function hashStaffPassword(password: string, salt = randomBytes(16).toStr
   return `scrypt:${salt}:${scryptSync(password, salt, 64).toString('hex')}`
 }
 
+export function isValidStaffSecret(secret: unknown): secret is string { return typeof secret === 'string' && secret.length >= 32 }
+
 export function isValidStaffPasswordHash(encoded: unknown): encoded is string {
   if (typeof encoded !== 'string') return false
   const [scheme, salt, digest, extra] = encoded.split(':')

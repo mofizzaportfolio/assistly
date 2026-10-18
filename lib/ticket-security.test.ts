@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canMutateTickets, canResolveRisk, createCustomerAccessToken, createStaffSessionToken, isStaffRole, isValidStaffPasswordHash, readStaffRole, validateTicketId, verifyCustomerAccessToken, verifyStaffPassword } from './ticket-security'
+import { canMutateTickets, canResolveRisk, createCustomerAccessToken, createStaffSessionToken, isStaffRole, isValidStaffPasswordHash, isValidStaffSecret, readStaffRole, validateTicketId, verifyCustomerAccessToken, verifyStaffPassword } from './ticket-security'
 
 describe('ticket security', () => {
   it('rejects missing or unknown roles', () => {
@@ -24,6 +24,11 @@ describe('ticket security', () => {
     expect(verifyCustomerAccessToken('TKT-ABC123', token, 'customer-secret')).toBe(true)
     expect(verifyCustomerAccessToken('TKT-OTHER', token, 'customer-secret')).toBe(false)
     expect(verifyCustomerAccessToken('TKT-ABC123', token, 'wrong-secret')).toBe(false)
+  })
+  it('validates staff configuration formats', () => {
+    expect(isValidStaffSecret('short')).toBe(false)
+    expect(isValidStaffSecret('a'.repeat(32))).toBe(true)
+    expect(isValidStaffPasswordHash('scrypt:' + 'a'.repeat(32) + ':' + 'b'.repeat(128))).toBe(true)
   })
   it('rejects malformed password verifiers without throwing', () => {
     expect(isValidStaffPasswordHash('not-a-hash')).toBe(false)

@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { createStaffSessionToken, isStaffRole, readStaffRole, STAFF_ROLES, verifyStaffPassword } from '@/lib/ticket-security'
+import { createStaffSessionToken, isStaffRole, isValidStaffPasswordHash, isValidStaffSecret, readStaffRole, STAFF_ROLES, verifyStaffPassword } from '@/lib/ticket-security'
 
 export async function POST(request: Request) {
   const secret = process.env.ASSISTLY_STAFF_SECRET
   const passwordHash = process.env.ASSISTLY_STAFF_PASSWORD_HASH
-  if (!secret || !passwordHash) return NextResponse.json({ error: 'Staff authentication is not configured. Set ASSISTLY_STAFF_SECRET and ASSISTLY_STAFF_PASSWORD_HASH.' }, { status: 503 })
+  if (!isValidStaffSecret(secret) || !isValidStaffPasswordHash(passwordHash)) return NextResponse.json({ error: 'Staff authentication is not configured correctly.' }, { status: 503 })
   const body = await request.json().catch(() => null) as { password?: unknown; role?: unknown } | null
   if (typeof body?.password !== 'string' || !isStaffRole(body.role) || !verifyStaffPassword(body.password, passwordHash)) return NextResponse.json({ error: 'Invalid staff credentials.' }, { status: 401 })
   const response = NextResponse.json({ authenticated: true, role: body.role })
