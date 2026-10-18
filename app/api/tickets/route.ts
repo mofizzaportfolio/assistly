@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { supportAgents, ticketEvents, tickets } from '@/lib/db/schema'
 import { canMutateTickets, canResolveRisk, readStaffRole, TICKET_STATUSES, validateTicketId } from '@/lib/ticket-security'
@@ -54,9 +54,18 @@ export async function PATCH(request: Request) {
       if (!agent) return NextResponse.json({ error: 'Assignee is not in the support roster.' }, { status: 400 })
     }
     const patch = { ...(body.status !== undefined ? { status: body.status as string } : {}), ...(body.assignee !== undefined ? { assignee: body.assignee as string } : {}), ...(body.team !== undefined ? { team: body.team as string } : {}), updatedAt: new Date() }
-    const [ticket] = await db.update(tickets).set(patch).where(eq(tickets.id, body.id as string)).returning()
-    await db.insert(ticketEvents).values({ ticketId: ticket.id, eventType: 'ticket_updated', actor: role, visibility: 'internal', body: 'Staff ticket update', metadata: { patch } })
-    return NextResponse.json({ ticket })
+    const idempotencyKey = request.headers.get('idempotency-key')?.trim() || null
+    if (idempotencyKey && idempotencyKey.length > 200) return NextResponse.json({ error: 'The idempotency key is too long.' }, { status: 400 })
+    if (idempotencyKey) {
+      const [existing] = await db.select({ metadata: ticketEvents.metadata }).from(ticketEvents).where(and(eq(ticketEvents.ticketId, current.id), eq(ticketEvents.idempotencyKey, idempotencyKey))).limit(1)
+      if (existing?.metadata && typeof existing.metadata === 'object' && 'ticket' in existing.metadata) return NextResponse.json({ ticket: (existing.metadata as { ticket: typeof current }).ticket, replayed: true })
+    }
+    const result = await db.transaction(async transaction => {
+      const [ticket] = await transaction.update(tickets).set(patch).where(eq(tickets.id, body.id as string)).returning()
+      await transaction.insert(ticketEvents).values({ ticketId: ticket.id, eventType: 'ticket_updated', actor: role, visibility: 'internal', body: 'Staff ticket update', idempotencyKey, metadata: { patch, ticket } })
+      return ticket
+    })
+    return NextResponse.json({ ticket: result })
   } catch {
     return NextResponse.json({ error: 'Ticket update failed.' }, { status: 503 })
   }
