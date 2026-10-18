@@ -52,5 +52,21 @@ export function readStaffRole(request: Request) {
 }
 
 export function validateTicketId(id: unknown) { return typeof id === 'string' && /^(DEMO|TKT)-[A-Z0-9-]{3,64}$/i.test(id) }
+
+export function createCustomerAccessToken(ticketId: string, secret: string) {
+  const payload = `${ticketId}.${randomBytes(18).toString('base64url')}`
+  const signature = createHmac('sha256', secret).update(payload).digest('base64url')
+  return `${payload}.${signature}`
+}
+
+export function verifyCustomerAccessToken(ticketId: string, token: string | null, secret: string) {
+  if (!token) return false
+  const [tokenTicketId, nonce, signature] = token.split('.')
+  if (tokenTicketId !== ticketId || !nonce || !signature) return false
+  const expected = createHmac('sha256', secret).update(`${tokenTicketId}.${nonce}`).digest('base64url')
+  const supplied = Buffer.from(signature)
+  const valid = Buffer.from(expected)
+  return supplied.length === valid.length && timingSafeEqual(supplied, valid)
+}
 export function canMutateTickets(role: StaffRole | null) { return role !== null }
 export function canResolveRisk(role: StaffRole | null, riskLevel: string) { return role !== null && (riskLevel === 'Low' || role === 'supervisor' || role === 'team_lead' || role === 'administrator') }
