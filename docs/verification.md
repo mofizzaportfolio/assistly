@@ -4,7 +4,7 @@
 
 Unit tests never use the project database. Real database verification requires an isolated disposable PostgreSQL/Neon branch supplied as `TEST_DATABASE_URL` and an explicit `ALLOW_TEST_DATABASE=true`. The URL must not equal `DATABASE_URL` and must not look production-like. Run `pnpm test:integration`; it fails closed with `BLOCKED` until the disposable branch is available. This harness never truncates, resets, migrates, or seeds a database automatically.
 
-The repository currently has no migration runner. Apply the schema to the disposable branch through the approved Neon workflow before extending the harness with destructive setup or persistence assertions.
+The repository currently has no migration runner. Create a disposable Neon branch or isolated PostgreSQL database, apply the existing schema and the `ticket_events.idempotency_key` column/index through the approved Neon workflow, then run `TEST_DATABASE_URL='postgresql://...isolated...' ALLOW_TEST_DATABASE=true pnpm test:integration`. The runner inserts only `INT-*` records inside a transaction and rolls the transaction back; it never truncates, resets, migrates, or falls back to `DATABASE_URL`. If the command prints `BLOCKED`, no database verification occurred.
 
 ## AI provider
 
