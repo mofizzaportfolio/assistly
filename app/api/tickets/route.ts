@@ -15,6 +15,7 @@ export async function GET() {
 export async function PATCH(request: Request) {
   try {
     const body = await request.json() as { id?: string; status?: string; assignee?: string; team?: string }
+    if (body.status && !['Open', 'Awaiting approval', 'Escalated', 'Resolved'].includes(body.status)) return NextResponse.json({ error: 'Unknown ticket status.' }, { status: 400 })
     if (!body.id || (!body.status && !body.assignee && !body.team)) return NextResponse.json({ error: 'A ticket id and update are required.' }, { status: 400 })
     const patch = { ...(body.status ? { status: body.status } : {}), ...(body.assignee ? { assignee: body.assignee } : {}), ...(body.team ? { team: body.team } : {}), updatedAt: new Date() }
     const [ticket] = await db.update(tickets).set(patch).where(eq(tickets.id, body.id)).returning()

@@ -9,7 +9,7 @@ const scenarios = [
 export async function POST() {
   try {
     for (const [index, [subject, message, category]] of scenarios.entries()) {
-      await db.insert(tickets).values({ id: `DEMO-${String(index + 1).padStart(4, '0')}`, subject: `DEMO: ${subject}`, customer: `Demo customer ${index + 1}`, originalMessage: message, category, tags: ['demo', 'sample'], priority: index % 5 === 0 ? 'High' : index % 3 === 0 ? 'Medium' : 'Low', riskLevel: index % 5 === 0 ? 'High' : 'Low', status: index % 4 === 0 ? 'Waiting for Human Support' : index % 3 === 0 ? 'AI Processing' : 'New', channel: index % 2 ? 'Web form' : 'Email', team: 'Human Support', isDemo: true }).onConflictDoNothing()
+      await db.insert(tickets).values({ id: `DEMO-${String(index + 1).padStart(4, '0')}`, subject: `DEMO: ${subject}`, customer: `Demo customer ${index + 1}`, originalMessage: message, category, tags: ['demo', 'sample'], priority: index % 5 === 0 ? 'High' : index % 3 === 0 ? 'Medium' : 'Low', riskLevel: index % 5 === 0 ? 'High' : 'Low', status: index % 4 === 0 ? 'Awaiting approval' : 'Open', channel: index % 2 ? 'Web form' : 'Email', team: 'Human Support', isDemo: true }).onConflictDoNothing()
     }
     return NextResponse.json({ seeded: scenarios.length })
   } catch { return NextResponse.json({ error: 'Demo seed failed.' }, { status: 503 }) }
