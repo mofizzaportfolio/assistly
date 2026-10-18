@@ -17,8 +17,13 @@ export function readStaffRole(request: Request) {
   const role = request.headers.get('x-assistly-role')
   const configuredSecret = process.env.ASSISTLY_STAFF_SECRET
   const suppliedSecret = request.headers.get('x-assistly-staff-secret')
-  if (!configuredSecret || !suppliedSecret || suppliedSecret !== configuredSecret || !isStaffRole(role)) return null
-  return role
+  const cookieHeader = request.headers.get('cookie') ?? ''
+  const cookieSecret = cookieHeader.match(/(?:^|; )assistly_staff_session=([^;]+)/)?.[1]
+  const cookieRole = cookieHeader.match(/(?:^|; )assistly_staff_role=([^;]+)/)?.[1]
+  const authenticatedRole = role ?? cookieRole
+  const authenticatedSecret = suppliedSecret ?? cookieSecret
+  if (!configuredSecret || authenticatedSecret !== configuredSecret || !isStaffRole(authenticatedRole)) return null
+  return authenticatedRole
 }
 
 export function validateTicketId(id: unknown) {
