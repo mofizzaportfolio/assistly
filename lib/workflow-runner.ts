@@ -39,7 +39,7 @@ export function createWorkflowRunner({ stageCount, onChange, startDelay = 200, s
     handle = scheduler.setTimeout(() => {
       if (id !== runId || state.status !== 'running') return
       handle = null
-      const isLast = nextStage === stageCount - 1
+      const isLast = nextStage >= stageCount - 1
       emit({ ...state, active: nextStage, status: isLast ? 'completed' : 'running' })
       if (!isLast) schedule(id, nextStage + 1, stepDelay)
     }, delay)
@@ -49,6 +49,10 @@ export function createWorkflowRunner({ stageCount, onChange, startDelay = 200, s
     clearPending()
     runId += 1
     emit({ status: 'running', active: -1, attempt: state.attempt + 1 })
+    if (stageCount <= 0) {
+      emit({ ...state, status: 'completed' })
+      return
+    }
     schedule(runId, 0, startDelay)
   }
 

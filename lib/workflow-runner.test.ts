@@ -117,3 +117,111 @@ describe('workflow runner', () => {
     expect(states.length).toBe(count)
   })
 })
+
+describe('workflow runner races', () => {
+  it('rapid cancel/retry clicks leave exactly one live timer and one attempt per retry', () => {
+    const { runner, advance, pending } = setup()
+    runner.start()
+    for (let i = 0; i < 5; i++) {
+      runner.cancel()
+      runner.cancel()
+      runner.retry()
+      runner.retry()
+    }
+    expect(runner.getState()).toMatchObject({ status: 'running', attempt: 6, active: -1 })
+    expect(pending()).toBe(1)
+    advance(200 + 170 * 3)
+    expect(runner.getState()).toMatchObject({ status: 'completed', active: 3, attempt: 6 })
+  })
+
+  it('duplicate start submissions do not create a second run', () => {
+    const { runner, pending } = setup()
+    runner.start()
+    runner.start()
+    runner.start()
+    expect(runner.getState().attempt).toBe(1)
+    expect(pending()).toBe(1)
+  })
+
+  it('a stale timer from a cancelled run cannot advance the retried run', () => {
+    let captured: (() => void) | undefined
+    const states: RunState[] = []
+    const scheduler: Scheduler = {
+      setTimeout: fn => { captured ??= fn; return 1 },
+      clearTimeout: () => {},
+    }
+    const runner = createWorkflowRunner({ stageCount: 4, scheduler, onChange: s => states.push(s) })
+    runner.start()
+    runner.cancel()
+    runner.retry()
+    captured?.()
+    expect(runner.getState()).toMatchObject({ status: 'running', active: -1, attempt: 2 })
+  })
+
+  it('a stale timer cannot revive a cancelled run', () => {
+    let captured: (() => void) | undefined
+    const scheduler: Scheduler = { setTimeout: fn => { captured = fn; return 1 }, clearTimeout: () => {} }
+    const runner = createWorkflowRunner({ stageCount: 4, scheduler, onChange: () => {} })
+    runner.start()
+    runner.cancel()
+    captured?.()
+    expect(runner.getState().status).toBe('cancelled')
+  })
+
+  it('start after completion begins a fresh attempt', () => {
+    const { runner, advance } = setup()
+    runner.start()
+    advance(200 + 170 * 3)
+    expect(runner.getState().status).toBe('completed')
+    runner.retry()
+    expect(runner.getState().status).toBe('completed')
+    runner.start()
+    expect(runner.getState()).toMatchObject({ status: 'running', active: -1, attempt: 2 })
+  })
+
+  it('cancel after completion is ignored', () => {
+    const { runner, advance } = setup()
+    runner.start()
+    advance(200 + 170 * 3)
+    runner.cancel()
+    expect(runner.getState().status).toBe('completed')
+  })
+
+  it('reset during a run then start does not inherit old timers', () => {
+    const { runner, advance, pending } = setup()
+    runner.start()
+    advance(370)
+    runner.reset()
+    runner.start()
+    expect(pending()).toBe(1)
+    advance(200)
+    expect(runner.getState()).toMatchObject({ status: 'running', active: 0 })
+  })
+
+  it('unmount (dispose) during a pending retry never emits and clears timers', () => {
+    const { runner, advance, pending, states } = setup()
+    runner.start()
+    runner.cancel()
+    runner.retry()
+    const count = states.length
+    runner.dispose()
+    advance(10000)
+    expect(pending()).toBe(0)
+    expect(states.length).toBe(count)
+  })
+
+  it('completes a zero-stage workflow without looping forever', () => {
+    const { runner, pending } = setup(0)
+    runner.start()
+    expect(runner.getState().status).toBe('completed')
+    expect(pending()).toBe(0)
+  })
+
+  it('completes a single-stage workflow after the first tick', () => {
+    const { runner, advance } = setup(1)
+    runner.start()
+    advance(200)
+    expect(runner.getState()).toMatchObject({ status: 'completed', active: 0 })
+  })
+})
+
