@@ -153,6 +153,15 @@
   }
 }
 
+@layer components {
+  .label { @apply text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400; }
+  .value { @apply mt-1 text-xs leading-5 text-slate-700; }
+  .action { @apply inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50; }
+  .action.primary { @apply border-indigo-600 bg-indigo-600 text-white hover:border-indigo-700 hover:text-white; }
+  .action.success { @apply border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:text-white; }
+  .action.danger { @apply border-red-200 text-red-700 hover:border-red-300 hover:text-red-800; }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
