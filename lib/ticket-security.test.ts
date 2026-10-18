@@ -13,17 +13,24 @@ describe('ticket security', () => {
     expect(validateTicketId('DROP TABLE tickets')).toBe(false)
   })
   it('signs staff sessions without placing the shared secret in the cookie', () => {
-    process.env.ASSISTLY_STAFF_SECRET = 'test-secret'
-    const token = createStaffSessionToken('support_agent', 'test-secret')
-    expect(token).not.toContain('test-secret')
+    const validSecret = 'test-secret-012345678901234567890'
+    process.env.ASSISTLY_STAFF_SECRET = validSecret
+    const token = createStaffSessionToken('support_agent', validSecret)
+    expect(token).not.toContain(validSecret)
     expect(readStaffRole(new Request('http://localhost', { headers: { cookie: `assistly_staff_session=${token}; assistly_staff_role=support_agent` } }))).toBe('support_agent')
     expect(readStaffRole(new Request('http://localhost', { headers: { cookie: `assistly_staff_session=${token}x; assistly_staff_role=support_agent` } }))).toBeNull()
+    const expired = createStaffSessionToken('support_agent', validSecret, Date.now() - (9 * 60 * 60 * 1000))
+    expect(readStaffRole(new Request('http://localhost', { headers: { cookie: `assistly_staff_session=${expired}` } }))).toBeNull()
+    process.env.ASSISTLY_STAFF_SECRET = 'short'
+    expect(readStaffRole(new Request('http://localhost', { headers: { cookie: `assistly_staff_session=${token}` } }))).toBeNull()
+    process.env.ASSISTLY_STAFF_SECRET = validSecret
   })
   it('isolates customer access tokens by ticket and secret', () => {
     const token = createCustomerAccessToken('TKT-ABC123', 'customer-secret')
     expect(verifyCustomerAccessToken('TKT-ABC123', token, 'customer-secret')).toBe(true)
     expect(verifyCustomerAccessToken('TKT-OTHER', token, 'customer-secret')).toBe(false)
     expect(verifyCustomerAccessToken('TKT-ABC123', token, 'wrong-secret')).toBe(false)
+    expect(verifyCustomerAccessToken('TKT-ABC123', `${token}.extra`, 'customer-secret')).toBe(false)
   })
   it('validates staff configuration formats', () => {
     expect(isValidStaffSecret('short')).toBe(false)

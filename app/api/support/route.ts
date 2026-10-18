@@ -23,6 +23,7 @@ export async function POST(request: Request) {
       model: gateway(SUPPORT_AI_MODEL),
       system: 'You are Assistly support triage. Ask focused follow-up questions when context is missing. Give safe numbered troubleshooting steps, never request passwords or secrets, and recommend human review for security, billing, data loss, production outages, or high-risk situations. Be concise and transparent.',
       prompt: JSON.stringify({ ticket, customerMessage: body.message }),
+      abortSignal: AbortSignal.timeout(15_000),
     })
     if (ticketId) {
       try {
