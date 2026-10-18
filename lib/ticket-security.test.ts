@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canMutateTickets, canResolveRisk, createStaffSessionToken, isStaffRole, readStaffRole, validateTicketId } from './ticket-security'
+import { canMutateTickets, canResolveRisk, createStaffSessionToken, isStaffRole, isValidStaffPasswordHash, readStaffRole, validateTicketId, verifyStaffPassword } from './ticket-security'
 
 describe('ticket security', () => {
   it('rejects missing or unknown roles', () => {
@@ -18,6 +18,10 @@ describe('ticket security', () => {
     expect(token).not.toContain('test-secret')
     expect(readStaffRole(new Request('http://localhost', { headers: { cookie: `assistly_staff_session=${token}; assistly_staff_role=support_agent` } }))).toBe('support_agent')
     expect(readStaffRole(new Request('http://localhost', { headers: { cookie: `assistly_staff_session=${token}x; assistly_staff_role=support_agent` } }))).toBeNull()
+  })
+  it('rejects malformed password verifiers without throwing', () => {
+    expect(isValidStaffPasswordHash('not-a-hash')).toBe(false)
+    expect(verifyStaffPassword('password', 'scrypt:bad:bad')).toBe(false)
   })
   it('requires elevated staff approval for risky resolution', () => {
     expect(canResolveRisk('support_agent', 'Critical')).toBe(false)

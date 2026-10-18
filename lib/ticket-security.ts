@@ -12,12 +12,22 @@ export function hashStaffPassword(password: string, salt = randomBytes(16).toStr
   return `scrypt:${salt}:${scryptSync(password, salt, 64).toString('hex')}`
 }
 
+export function isValidStaffPasswordHash(encoded: unknown): encoded is string {
+  if (typeof encoded !== 'string') return false
+  const [scheme, salt, digest, extra] = encoded.split(':')
+  return scheme === 'scrypt' && Boolean(salt) && !extra && /^[a-f0-9]{128}$/i.test(digest ?? '') && /^[a-f0-9]{32}$/i.test(salt)
+}
+
 export function verifyStaffPassword(password: string, encoded: string) {
-  const [scheme, salt, digest] = encoded.split(':')
-  if (scheme !== 'scrypt' || !salt || !digest || !/^[a-f0-9]{128}$/i.test(digest)) return false
-  const actual = scryptSync(password, salt, 64)
-  const expected = Buffer.from(digest, 'hex')
-  return actual.length === expected.length && timingSafeEqual(actual, expected)
+  if (!isValidStaffPasswordHash(encoded)) return false
+  try {
+    const [, salt, digest] = encoded.split(':')
+    const actual = scryptSync(password, salt, 64)
+    const expected = Buffer.from(digest, 'hex')
+    return actual.length === expected.length && timingSafeEqual(actual, expected)
+  } catch {
+    return false
+  }
 }
 
 export function createStaffSessionToken(role: StaffRole, secret: string, now = Date.now()) {

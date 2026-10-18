@@ -24,6 +24,8 @@ const publicFields = {
 }
 
 export async function GET(request: Request) {
+  const role = readStaffRole(request)
+  if (!role) return NextResponse.json({ error: 'Authenticated staff access is required.' }, { status: 401 })
   try {
     const rows = await db.select(publicFields).from(tickets).where(eq(tickets.isDemo, true)).orderBy(asc(tickets.createdAt))
     const role = readStaffRole(request)
