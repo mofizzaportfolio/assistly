@@ -1,3 +1,5 @@
+import { createHmac, timingSafeEqual } from 'node:crypto'
+
 export const STAFF_ROLES = ['support_agent', 'technical_agent', 'supervisor', 'team_lead', 'administrator'] as const
 export type StaffRole = (typeof STAFF_ROLES)[number]
 
@@ -13,17 +15,29 @@ export function isStaffRole(value: unknown): value is StaffRole {
   return typeof value === 'string' && (STAFF_ROLES as readonly string[]).includes(value)
 }
 
+export function createStaffSessionToken(role: StaffRole, secret: string) {
+  const signature = createHmac('sha256', secret).update(role).digest('base64url')
+  return `${role}.${signature}`
+}
+
+function hasValidSessionToken(token: string, role: StaffRole, secret: string) {
+  const expected = createStaffSessionToken(role, secret)
+  const suppliedBuffer = Buffer.from(token)
+  const expectedBuffer = Buffer.from(expected)
+  return suppliedBuffer.length === expectedBuffer.length && timingSafeEqual(suppliedBuffer, expectedBuffer)
+}
+
 export function readStaffRole(request: Request) {
-  const role = request.headers.get('x-assistly-role')
+  const headerRole = request.headers.get('x-assistly-role')
   const configuredSecret = process.env.ASSISTLY_STAFF_SECRET
   const suppliedSecret = request.headers.get('x-assistly-staff-secret')
   const cookieHeader = request.headers.get('cookie') ?? ''
-  const cookieSecret = cookieHeader.match(/(?:^|; )assistly_staff_session=([^;]+)/)?.[1]
+  const cookieToken = cookieHeader.match(/(?:^|; )assistly_staff_session=([^;]+)/)?.[1]
   const cookieRole = cookieHeader.match(/(?:^|; )assistly_staff_role=([^;]+)/)?.[1]
-  const authenticatedRole = role ?? cookieRole
-  const authenticatedSecret = suppliedSecret ?? cookieSecret
-  if (!configuredSecret || authenticatedSecret !== configuredSecret || !isStaffRole(authenticatedRole)) return null
-  return authenticatedRole
+  if (!configuredSecret) return null
+  if (isStaffRole(headerRole) && suppliedSecret === configuredSecret) return headerRole
+  if (isStaffRole(cookieRole) && cookieToken && hasValidSessionToken(cookieToken, cookieRole, configuredSecret)) return cookieRole
+  return null
 }
 
 export function validateTicketId(id: unknown) {

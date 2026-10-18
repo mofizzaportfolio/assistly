@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { isStaffRole, STAFF_ROLES } from '@/lib/ticket-security'
+import { createStaffSessionToken, isStaffRole, STAFF_ROLES } from '@/lib/ticket-security'
 
 export async function POST(request: Request) {
   const configuredSecret = process.env.ASSISTLY_STAFF_SECRET
@@ -8,7 +8,7 @@ export async function POST(request: Request) {
   if (body?.secret !== configuredSecret || !isStaffRole(body.role)) return NextResponse.json({ error: 'Invalid staff credentials.' }, { status: 401 })
   const response = NextResponse.json({ authenticated: true, role: body.role })
   response.cookies.set('assistly_staff_role', body.role, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 60 * 60 * 8 })
-  response.cookies.set('assistly_staff_session', configuredSecret, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 60 * 60 * 8 })
+  response.cookies.set('assistly_staff_session', createStaffSessionToken(body.role, configuredSecret), { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 60 * 60 * 8 })
   return response
 }
 
