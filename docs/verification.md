@@ -8,7 +8,7 @@ The repository currently has no migration runner. Create a disposable Neon branc
 
 ## AI provider
 
-The support route uses AI SDK 7's `gateway()` with model `openai/gpt-4.1-mini`. Vercel deployments may authenticate through runtime/OIDC; local or explicitly keyed environments may provide `AI_GATEWAY_API_KEY`. `API_KEY` alone is not treated as proof that the Gateway is configured. `GET /api/support/health` returns only model, auth mode, and a boolean configured flag; it never returns secrets. A successful build or health response does not prove a live provider call.
+The support route uses AI SDK 7's `gateway()` with model `openai/gpt-4.1-mini`. Vercel deployments may authenticate through runtime/OIDC; local or explicitly keyed environments may provide `AI_GATEWAY_API_KEY`. The health endpoint reports `configured: true` only for an explicit Gateway key; a deployed runtime request is still the required proof for OIDC. `API_KEY` alone is never treated as a Gateway credential. `GET /api/support/health` returns only model, auth mode, and a boolean configured flag; it never returns secrets. A successful build or health response does not prove a live provider call.
 
 ## Staff authentication
 

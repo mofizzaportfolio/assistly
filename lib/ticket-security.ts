@@ -40,7 +40,7 @@ export function createStaffSessionToken(role: StaffRole, secret: string, now = D
 
 export function readStaffRole(request: Request) {
   const secret = process.env.ASSISTLY_STAFF_SECRET
-  if (!secret) return null
+  if (!isValidStaffSecret(secret)) return null
   const cookie = request.headers.get('cookie') ?? ''
   const token = cookie.match(/(?:^|; )assistly_staff_session=([^;]+)/)?.[1]
   if (!token) return null
@@ -63,8 +63,8 @@ export function createCustomerAccessToken(ticketId: string, secret: string) {
 
 export function verifyCustomerAccessToken(ticketId: string, token: string | null, secret: string) {
   if (!token) return false
-  const [tokenTicketId, nonce, signature] = token.split('.')
-  if (tokenTicketId !== ticketId || !nonce || !signature) return false
+  const [tokenTicketId, nonce, signature, extra] = token.split('.')
+  if (tokenTicketId !== ticketId || !nonce || !signature || extra) return false
   const expected = createHmac('sha256', secret).update(`${tokenTicketId}.${nonce}`).digest('base64url')
   const supplied = Buffer.from(signature)
   const valid = Buffer.from(expected)
