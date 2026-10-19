@@ -25,9 +25,11 @@ export async function POST(request: Request) {
       prompt: JSON.stringify({ ticket, customerMessage: body.message }),
       abortSignal: AbortSignal.timeout(15_000),
     })
+    const answer = result.text.trim()
+    if (!answer) throw new Error('AI provider returned an empty response')
     if (ticketId) {
       try {
-        await db.insert(ticketEvents).values({ ticketId, eventType: 'ai_analysis', actor: 'ai_assistant', visibility: 'public', body: result.text, idempotencyKey, metadata: { model: SUPPORT_AI_MODEL } })
+        await db.insert(ticketEvents).values({ ticketId, eventType: 'ai_analysis', actor: 'ai_assistant', visibility: 'public', body: answer, idempotencyKey, metadata: { model: SUPPORT_AI_MODEL } })
       } catch (error) {
         if (!idempotencyKey) throw error
         const [existing] = await db.select({ body: ticketEvents.body }).from(ticketEvents).where(and(eq(ticketEvents.ticketId, ticketId), eq(ticketEvents.idempotencyKey, idempotencyKey))).limit(1)
@@ -35,7 +37,7 @@ export async function POST(request: Request) {
         throw error
       }
     }
-    return NextResponse.json({ answer: result.text, provider: 'Vercel AI Gateway' })
+    return NextResponse.json({ answer, provider: 'Vercel AI Gateway' })
   } catch (error) {
     console.error('[v0] AI support request failed', error instanceof Error ? error.name : 'unknown_error')
     const configured = getSupportAiConfig().configured
