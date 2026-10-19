@@ -34,6 +34,10 @@ export async function generateSupportFirstResponse({ ticketId, message, idempote
   try {
     await db.insert(ticketEvents).values({ ticketId, eventType: 'ai_analysis', actor: 'ai_assistant', visibility: 'public', body: answer, idempotencyKey, metadata: { model: SUPPORT_AI_MODEL } })
   } catch (error) {
+    const candidate = error as { code?: unknown; name?: unknown; constructor?: { name?: unknown } }
+    const errorName = typeof candidate.name === 'string' ? candidate.name : typeof candidate.constructor?.name === 'string' ? candidate.constructor.name : 'UnknownError'
+    const errorCode = typeof candidate.code === 'string' && /^[A-Z0-9_:-]{1,40}$/.test(candidate.code) ? candidate.code : undefined
+    console.error('[assistly.ai]', JSON.stringify({ category: 'persistence', eventType: 'ai_analysis', requestId, errorName, errorCode }))
     if (!idempotencyKey) throw error
     const [existing] = await db.select({ body: ticketEvents.body }).from(ticketEvents).where(and(eq(ticketEvents.ticketId, ticketId), eq(ticketEvents.eventType, 'ai_analysis'), eq(ticketEvents.idempotencyKey, idempotencyKey))).limit(1)
     if (existing?.body) return existing.body
