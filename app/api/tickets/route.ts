@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { supportAgents, ticketEvents, tickets } from '@/lib/db/schema'
 import { canMutateTickets, canResolveRisk, createCustomerAccessToken, readStaffRole, TICKET_STATUSES, validateTicketId, verifyCustomerAccessToken } from '@/lib/ticket-security'
+import { generateSupportFirstResponse } from '@/lib/support-ai'
 
 const publicFields = {
   id: tickets.id,
@@ -33,15 +34,33 @@ export async function POST(request: Request) {
   const email = body?.email
   const message = body?.message
   if (typeof subject !== 'string' || subject.trim().length < 3 || subject.length > 200 || typeof customer !== 'string' || customer.trim().length < 2 || customer.length > 120 || (email !== undefined && (typeof email !== 'string' || email.length > 320)) || typeof message !== 'string' || message.trim().length < 10 || message.length > 12000) return NextResponse.json({ error: 'Subject, name, and a detailed problem description are required.' }, { status: 400 })
+  const idempotencyKey = request.headers.get('idempotency-key')?.trim() || null
+  if (idempotencyKey && idempotencyKey.length > 200) return NextResponse.json({ error: 'The idempotency key is too long.' }, { status: 400 })
+  if (idempotencyKey) {
+    const [existingEvent] = await db.select({ ticketId: ticketEvents.ticketId }).from(ticketEvents).where(eq(ticketEvents.idempotencyKey, idempotencyKey)).orderBy(desc(ticketEvents.createdAt)).limit(1)
+    if (existingEvent) {
+      const [existingTicket] = await db.select().from(tickets).where(eq(tickets.id, existingEvent.ticketId)).limit(1)
+      if (existingTicket) {
+        const accessToken = createCustomerAccessToken(existingTicket.id, secret)
+        return NextResponse.json({ ticket: existingTicket, accessToken, replayed: true })
+      }
+    }
+  }
   const id = `TKT-${randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase()}`
   try {
     const ticket = await db.transaction(async transaction => {
       const [created] = await transaction.insert(tickets).values({ id, subject: subject.trim(), customer: customer.trim(), customerEmail: typeof email === 'string' ? email.trim().toLowerCase() : null, originalMessage: message.trim(), category: 'General Support', tags: [], priority: 'Medium', riskLevel: 'Low', status: 'Open', channel: 'web', team: 'Human Support', isDemo: false }).returning()
-      await transaction.insert(ticketEvents).values({ ticketId: id, eventType: 'customer_message', actor: 'customer', visibility: 'public', body: message.trim(), metadata: { source: 'customer_portal' } })
+      await transaction.insert(ticketEvents).values({ ticketId: id, eventType: 'customer_message', actor: 'customer', visibility: 'public', body: message.trim(), idempotencyKey, metadata: { source: 'customer_portal' } })
       return created
     })
+    let aiAvailable = true
+    try {
+      await generateSupportFirstResponse({ ticketId: id, message: message.trim(), idempotencyKey })
+    } catch {
+      aiAvailable = false
+    }
     const accessToken = createCustomerAccessToken(id, secret)
-    const response = NextResponse.json({ ticket, accessToken }, { status: 201 })
+    const response = NextResponse.json({ ticket, accessToken, aiAvailable, ...(aiAvailable ? {} : { notice: 'Your ticket was created, but AI support is temporarily unavailable. A human support agent can continue helping you.' }) }, { status: 201 })
     response.cookies.set('assistly_customer_access', `${id}.${accessToken}`, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 60 * 60 * 24 * 30, path: '/' })
     return response
   } catch {
