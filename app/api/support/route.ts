@@ -20,7 +20,19 @@ export async function POST(request: Request) {
       if (existing?.body) return NextResponse.json({ answer: existing.body, provider: 'Vercel AI Gateway', replayed: true })
     }
     if (!ticketId) {
-      const result = await generateText({ model: gateway(SUPPORT_AI_MODEL), system: 'You are Assistly support triage. Ask focused follow-up questions when context is missing. Give safe numbered troubleshooting steps, never request passwords or secrets, and recommend human review for security, billing, data loss, production outages, or high-risk situations. Be concise and transparent.', prompt: JSON.stringify({ customerMessage: body.message }), abortSignal: AbortSignal.timeout(15_000) })
+      const requestId = crypto.randomUUID()
+      let result
+      try {
+        result = await generateText({ model: gateway(SUPPORT_AI_MODEL), system: 'You are Assistly support triage. Ask focused follow-up questions when context is missing. Give safe numbered troubleshooting steps, never request passwords or secrets, and recommend human review for security, billing, data loss, production outages, or high-risk situations. Be concise and transparent.', prompt: JSON.stringify({ customerMessage: body.message }), abortSignal: AbortSignal.timeout(15_000) })
+      } catch (error) {
+        const candidate = error as { statusCode?: unknown; responseHeaders?: Headers | Record<string, string>; name?: unknown }
+        const status = typeof candidate.statusCode === 'number' ? candidate.statusCode : undefined
+        const headers = candidate.responseHeaders instanceof Headers ? candidate.responseHeaders : new Headers(candidate.responseHeaders)
+        const upstreamRequestId = headers.get('x-request-id') ?? headers.get('request-id') ?? undefined
+        const category = error instanceof DOMException && error.name === 'TimeoutError' ? 'timeout' : candidate.name === 'GatewayAuthenticationError' ? 'authentication' : candidate.name === 'GatewayRateLimitError' ? 'rate_limit' : candidate.name === 'GatewayInternalServerError' ? 'gateway_internal' : 'provider_error'
+        console.error('[assistly.ai]', JSON.stringify({ status, category, requestId, upstreamRequestId, model: SUPPORT_AI_MODEL }))
+        throw error
+      }
       const answer = result.text.trim()
       if (!answer) throw new Error('AI provider returned an empty response')
       return NextResponse.json({ answer, provider: 'Vercel AI Gateway' })
